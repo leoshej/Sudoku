@@ -1,793 +1,491 @@
-"""
-SUDOKU GENERÁTOR A SOLVER
-=========================
-Modul pro generování Sudoku hádanek a měření jejich obtížnosti
-pomocí simulace řešení konvenčními logickými metodami.
-"""
+"""Sudoku generator and solver."""
 
 import random
-import copy
 
-# ============================================================================
-# ČÁST 1: POMOCNÉ FUNKCE PRO VALIDACI
-# ==========================================================================
 
-def je_valid(pole, radek, sloupec, cislo):
-    """
-    Ověří, zda je možné doplnit číslo na dané místo bez porušení Sudoku pravidel.
-    """
-    # Kontrola řádku - číslo nesmí být v řádku
-    if cislo in pole[radek]:
+def is_valid(board, row, col, value):
+    """Return True if the value can be placed without violating Sudoku rules."""
+    if value in board[row]:
         return False
-    
-    # Kontrola sloupce - číslo nesmí být ve sloupci
+
     for r in range(9):
-        if pole[r][sloupec] == cislo:
+        if board[r][col] == value:
             return False
-    
-    # Kontrola 3x3 boxu - číslo nesmí být v boxu
-    sr, ss = 3 * (radek // 3), 3 * (sloupec // 3)
-    for r in range(sr, sr + 3):
-        for s in range(ss, ss + 3):
-            if pole[r][s] == cislo:
+
+    box_row, box_col = 3 * (row // 3), 3 * (col // 3)
+    for r in range(box_row, box_row + 3):
+        for c in range(box_col, box_col + 3):
+            if board[r][c] == value:
                 return False
-    
+
     return True
 
 
-def spocitej_reseni(pole):
-    """
-    Spočítá počet možných řešení Sudoku.
-    Používá se pro ověření, že vygenerované Sudoku má právě jedno řešení.
-    """
-    # Najít první prázdné políčko
-    empty = None
+def count_solutions(board):
+    """Count the number of valid completions for the given board."""
+    empty_cell = None
     for r in range(9):
-        for s in range(9):
-            if pole[r][s] == 0:
-                empty = (r, s)
+        for c in range(9):
+            if board[r][c] == 0:
+                empty_cell = (r, c)
                 break
-        if empty:
+        if empty_cell:
             break
-    
-    # Pokud nejsou žádná prázdná políčka, máme jedno řešení
-    if not empty:
+
+    if not empty_cell:
         return 1
-    
-    # Zkusit všechna čísla na pozici
-    r, s = empty
+
+    row, col = empty_cell
     count = 0
-    for c in range(1, 10):
-        if je_valid(pole, r, s, c):
-            pole[r][s] = c
-            count += spocitej_reseni(pole)
-            pole[r][s] = 0  # Zpět
-            if count > 1:  # Optimalizace: nemůžeme pokračovat pokud máme více řešení
+    for value in range(1, 10):
+        if is_valid(board, row, col, value):
+            board[row][col] = value
+            count += count_solutions(board)
+            board[row][col] = 0
+            if count > 1:
                 return 2
-    
+
     return count
 
 
-# ============================================================================
-# ČÁST 2: GENERÁTOR SUDOKU
-# ============================================================================
-
-def doplneni_pole(pole):
-    """
-    Vyplní prázdné Sudoku pole validním řešením pomocí backtrackingu.
-    """
-    # Najít první prázdné políčko
-    empty = None
+def fill_board(board):
+    """Fill an empty grid using backtracking."""
+    empty_cell = None
     for r in range(9):
-        for s in range(9):
-            if pole[r][s] == 0:
-                empty = (r, s)
+        for c in range(9):
+            if board[r][c] == 0:
+                empty_cell = (r, c)
                 break
-        if empty:
+        if empty_cell:
             break
-    
-    # Pokud nemáme prázdná políčka, jsme hotovi
-    if not empty:
+
+    if not empty_cell:
         return True
-    
-    # Zkusit čísla v náhodném pořadí (aby vygenerovaná Sudoku byla rozmanitá)
-    r, s = empty
-    nums = list(range(1, 10))
-    random.shuffle(nums)
-    
-    for c in nums:
-        if je_valid(pole, r, s, c):
-            pole[r][s] = c
-            if doplneni_pole(pole):  # Rekurzivně pokračovat
+
+    row, col = empty_cell
+    numbers = list(range(1, 10))
+    random.shuffle(numbers)
+
+    for value in numbers:
+        if is_valid(board, row, col, value):
+            board[row][col] = value
+            if fill_board(board):
                 return True
-            pole[r][s] = 0  # Backtrack
-    
+            board[row][col] = 0
+
     return False
 
 
-def odeber_cisla(pole, pocet_k_odebrani):
-    """
-    Odebere čísla z vyplněného Sudoku, ale hlídá aby zůstalo právě jedno řešení."""
-    # Vytvořit seznam všech souřadnic a zamíchat je
-    coords = [(r, s) for r in range(9) for s in range(9)]
+def remove_numbers(board, cells_to_remove):
+    """Remove cells while keeping a unique solution."""
+    coords = [(r, c) for r in range(9) for c in range(9)]
     random.shuffle(coords)
-    
-    odebrano = 0
-    # Procházet souřadnice a odebírat čísla
-    for r, s in coords:
-        if odebrano >= pocet_k_odebrani:
+
+    removed = 0
+    for row, col in coords:
+        if removed >= cells_to_remove:
             break
-        
-        # Uložit původní hodnotu
-        zaloha = pole[r][s]
-        pole[r][s] = 0
-        
-        # Ověřit že Sudoku má stále právě jedno řešení
-        kopie = [row[:] for row in pole]
-        if spocitej_reseni(kopie) != 1:
-            # Vrátit číslici zpět pokud by vzniklo více řešení
-            pole[r][s] = zaloha
+
+        original_value = board[row][col]
+        board[row][col] = 0
+
+        board_copy = [line[:] for line in board]
+        if count_solutions(board_copy) != 1:
+            board[row][col] = original_value
         else:
-            odebrano += 1
-    
-    return pole
+            removed += 1
+
+    return board
 
 
-def je_vyreseno(grid):
-    """
-    Ověří, zda je Sudoku správně a kompletně vyřešeno
-    """
-    # Kontrola rozměrů
+def is_solved(grid):
+    """Check whether a Sudoku board is complete and valid."""
     if not grid or len(grid) != 9 or not all(isinstance(row, list) and len(row) == 9 for row in grid):
         return False
 
-    # Správná sada čísel (1-9)
-    referenci_mnozina = set(range(1, 10))
-
-    # Kontrola řádků a sloupců
+    valid_set = set(range(1, 10))
     for i in range(9):
-        # Řádek
-        if set(grid[i]) != referenci_mnozina:
+        if set(grid[i]) != valid_set:
             return False
-        
-        # Sloupec
-        sloupec = [grid[j][i] for j in range(9)]
-        if set(sloupec) != referenci_mnozina:
+        column = [grid[r][i] for r in range(9)]
+        if set(column) != valid_set:
             return False
 
-    # Kontrola 3x3 boxů
     for i in range(0, 9, 3):
         for j in range(0, 9, 3):
-            blok = [
-                grid[x][y]
-                for x in range(i, i + 3)
-                for y in range(j, j + 3)
-            ]
-            if set(blok) != referenci_mnozina:
+            block = [grid[r][c] for r in range(i, i + 3) for c in range(j, j + 3)]
+            if set(block) != valid_set:
                 return False
 
     return True
 
 
-# ============================================================================
-# ČÁST 3: URČOVÁNÍ OBTÍŽNOSTI - METODY ŘEŠENÍ
-# ============================================================================
+def determine_complexity(input_grid):
+    """Estimate puzzle difficulty using logical solving patterns."""
+    board = [row[:] for row in input_grid]
+    score = 0
+    candidates = [[set() for _ in range(9)] for _ in range(9)]
+    candidates_active = False
 
-def urceni_slozitosti(vstupni_pole):
-    """
-    Měří obtížnost Sudoku simulací řešení konvenčními logickými metodami.
-    
-    ALGORITMUS:
-    ===========
-    1. Nejdřív zkoušíme jednoduché metody (bez mapování kandidátů)
-    2. Pokud nestačí, aktivujeme systém kandidátů
-    3. Pak zkoušíme pokročilé metody
-    4. Na konci vrátíme skóre a indikátor řešitelnosti
-    
-    BODOVÁNÍ:
-    =========
-    - Poslední volné: 1 bod
-    - Jediná možnost: 2 body
-    - Jediné umístění: 3 body
-    - Směřující dvojice: 6 bodů
-    - Viditelné dvojice: 4-5 bodů
-    - Skryté dvojice: 10 bodů
-    - Viditelné trojice: 15 bodů
-    - X-křídlo: 25 bodů
-    """
-    pole = [r[:] for r in vstupni_pole]  # Kopie aby jsme neponičili vstup
-    skore = 0
-    
-    # Kandidáti = možná čísla pro každé políčko
-    # Inicializace prázdných sad (povolujeme až po aktivaci)
-    kandidati = [[set() for _ in range(9)] for _ in range(9)]
-    kandidati_aktivni = False
+    def all_groups():
+        groups = []
+        for i in range(9):
+            groups.append([(i, c) for c in range(9)])
+        for i in range(9):
+            groups.append([(r, i) for r in range(9)])
+        for block_index in range(9):
+            start_row, start_col = (block_index // 3) * 3, (block_index % 3) * 3
+            groups.append([(r, c) for r in range(start_row, start_row + 3) for c in range(start_col, start_col + 3)])
+        return groups
 
-    def refresh_kandidaty():
-        """Přepočítá všechny kandidáty na základě aktuálního stavu pole"""
+    def refresh_candidates():
         for r in range(9):
-            for s in range(9):
-                if pole[r][s] == 0:
-                    cands = set()
-                    for c in range(1, 10):
-                        if je_valid(pole, r, s, c):
-                            cands.add(c)
-                    kandidati[r][s] = cands
+            for c in range(9):
+                if board[r][c] == 0:
+                    valid_numbers = set()
+                    for value in range(1, 10):
+                        if is_valid(board, r, c, value):
+                            valid_numbers.add(value)
+                    candidates[r][c] = valid_numbers
                 else:
-                    kandidati[r][s] = set()
+                    candidates[r][c] = set()
 
-    def update_po_tahu(r, s, c):
-        """
-        Aktualizuje kandidáty po doplnění čísla.
-        Vymaže kandidáta c z všech políček v řádku, sloupci a boxu.
-        """
-        if not kandidati_aktivni:
+    def update_after_move(row, col, value):
+        if not candidates_active:
             return
-        # Vymazat c z řádku
         for i in range(9):
-            kandidati[r][i].discard(c)
-        # Vymazat c ze sloupce
+            candidates[row][i].discard(value)
         for i in range(9):
-            kandidati[i][s].discard(c)
-        # Vymazat c z boxu
-        sr, ss = (r // 3) * 3, (s // 3) * 3
-        for i in range(sr, sr + 3):
-            for j in range(ss, ss + 3):
-                kandidati[i][j].discard(c)
-        kandidati[r][s] = set()
+            candidates[i][col].discard(value)
+        start_row, start_col = (row // 3) * 3, (col // 3) * 3
+        for r in range(start_row, start_row + 3):
+            for c in range(start_col, start_col + 3):
+                candidates[r][c].discard(value)
+        candidates[row][col] = set()
 
-    # ========================================================================
-    # JEDNODUCHÉ METODY (BEZ KANDIDÁTŮ) - FÁZE 1
-    # ========================================================================
-
-    def m_poslední_volné():
-        """
-        POSLEDNÍ VOLNÉ (Full House / Poslední v jednotce)
-        
-        VYSVĚTLENÍ:
-        Pokud v řádku, sloupci nebo boxu zbývá jen jedna nula,
-        víme přesně jaké číslo tam patří. Je to číslo, které vté 
-        jednotce chybí.
-        
-        PŘÍKLAD:
-        Řádek: [1, 2, 3, 4, 5, 6, 7, 8, _]
-        Chybí: 9
-        
-        BODŮ: 1 bod za každou nalezenou hodnotu
-        """
+    def last_empty_method():
         change = False
-        pts = 0
+        points = 0
         units = []
-        
-        # Vytvořit seznamy jednotek (řádky, sloupce, boxy)
-        # Řádky
         for i in range(9):
-            units.append([(i, j) for j in range(9)])
-        # Sloupce
+            units.append([(i, c) for c in range(9)])
         for i in range(9):
-            units.append([(j, i) for j in range(9)])
-        # Boxy (3x3)
+            units.append([(r, i) for r in range(9)])
         for i in range(9):
-            sr, ss = (i // 3) * 3, (i % 3) * 3
-            units.append([(r, s) for r in range(sr, sr + 3) for s in range(ss, ss + 3)])
-
-        # Procházet všechny jednotky
+            start_row, start_col = (i // 3) * 3, (i % 3) * 3
+            units.append([(r, c) for r in range(start_row, start_row + 3) for c in range(start_col, start_col + 3)])
         for unit in units:
-            vals = [pole[r][s] for r, s in unit]
-            # Pokud je jen jedna nula v jednotce
-            if vals.count(0) == 1:
-                # Najít chybějící číslo (to které není v jednotce)
-                missing = [n for n in range(1, 10) if n not in vals][0]
-                # Najít pozici nuly a doplnit ji
-                for r, s in unit:
-                    if pole[r][s] == 0:
-                        pole[r][s] = missing
-                        update_po_tahu(r, s, missing)
+            values = [board[r][c] for r, c in unit]
+            if values.count(0) == 1:
+                missing = [n for n in range(1, 10) if n not in values][0]
+                for r, c in unit:
+                    if board[r][c] == 0:
+                        board[r][c] = missing
+                        update_after_move(r, c, missing)
                         change = True
-                        pts += 1
+                        points += 1
                         break
-        return change, pts
+        return change, points
 
-    def m_jediná_možnost():
-        """
-        JEDINÁ MOŽNOST (Naked Single / Nudé jedináče)
-        
-        VYSVĚTLENÍ:
-        Pokud má políčko jen jednu platnou možnost (jen jedno číslo 
-        které se tam dá doplnit bez konfliktu), tak víme co tam patří.
-        BODŮ: 2 body za každou nalezenou hodnotu
-        """
+    def single_choice_method():
         change = False
-        pts = 0
+        points = 0
         for r in range(9):
-            for s in range(9):
-                if pole[r][s] == 0:
-                    # Najít všechny platné kandidáty
-                    mozne = [c for c in range(1, 10) if je_valid(pole, r, s, c)]
-                    # Pokud je jen jeden, můžeme ho doplnit
-                    if len(mozne) == 1:
-                        val = mozne[0]
-                        pole[r][s] = val
-                        update_po_tahu(r, s, val)
+            for c in range(9):
+                if board[r][c] == 0:
+                    options = [value for value in range(1, 10) if is_valid(board, r, c, value)]
+                    if len(options) == 1:
+                        value = options[0]
+                        board[r][c] = value
+                        update_after_move(r, c, value)
                         change = True
-                        pts += 2
-        return change, pts
+                        points += 2
+        return change, points
 
-    def m_jediné_umístění():
-        """
-        JEDINÉ UMÍSTĚNÍ (Hidden Single / Skryté jedináče)
-        
-        VYSVĚTLENÍ:
-        Pokud se číslo v řádku/sloupci vyskytuje jen v jednom místě,
-        víme kde musí být. Například pokud se 5 v řádku vyskytuje
-        jen v jedné prázdné buňce, tak tam musí být.
-        
-        PŘÍKLAD:
-        Řádek: [_, _, _, 5, _, _, _, _, _]
-        Hledáme kde se dá doplnit 5
-        - Políčko 1: se dá
-        - Políčko 2: nelze (konflikt se sloupcem)
-        - Políčko 3: nelze (konflikt s boxem)
-        - itd.
-        Jen jedno místo -> doplníme tam
-        
-        BODŮ: 3 body za každou nalezenou hodnotu
-        """
+    def single_position_method():
         change = False
-        pts = 0
-        for c in range(1, 10):
-            # Kontrola řádků
-            for r in range(9):
-                if c not in pole[r]:  # Pokud c už není v řádku
-                    places = []
-                    for s in range(9):
-                        # Kde se dá doplnit c
-                        if pole[r][s] == 0 and je_valid(pole, r, s, c):
-                            places.append((r, s))
-                    # Pokud je jen jedno místo, doplníme
-                    if len(places) == 1:
-                        rr, ss = places[0]
-                        pole[rr][ss] = c
-                        update_po_tahu(rr, ss, c)
-                        change = True
-                        pts += 3
-            
-            # Kontrola sloupců
-            for s in range(9):
-                if c not in [pole[r][s] for r in range(9)]:  # Pokud c není ve sloupci
-                    places = []
-                    for r in range(9):
-                        # Kde se dá doplnit c
-                        if pole[r][s] == 0 and je_valid(pole, r, s, c):
-                            places.append((r, s))
-                    # Pokud je jen jedno místo, doplníme
-                    if len(places) == 1:
-                        rr, ss = places[0]
-                        pole[rr][ss] = c
-                        update_po_tahu(rr, ss, c)
-                        change = True
-                        pts += 3
-        return change, pts
+        points = 0
+        for unit in all_groups():
+            for value in range(1, 10):
+                if any(board[r][c] == value for r, c in unit):
+                    continue
+                positions = [(r, c) for r, c in unit if board[r][c] == 0 and is_valid(board, r, c, value)]
+                if len(positions) == 1:
+                    row, col = positions[0]
+                    board[row][col] = value
+                    update_after_move(row, col, value)
+                    change = True
+                    points += 3
+        return change, points
 
-    # ========================================================================
-    # POKROČILÉ METODY (VYŽADUJÍ KANDIDÁTY) - FÁZE 2
-    # ========================================================================
-
-    def m_viditelne_dvojice():
-        """
-        VIDITELNÉ DVOJICE (Naked Pairs)
-        
-        VYSVĚTLENÍ:
-        Pokud dvě políčka ve skupině (řádek, sloupec, box) 
-        mají identicky STEJNÉ DVA kandidáty, pak tyto dva kandidáti
-        nemohou být nikde jinde v té skupině.
-        
-        PŘÍKLAD:
-        Řádek: [..., (3,7), ..., (3,7), ..., (2,3), ...]
-                    ↑           ↑          ↑
-                  políčko 3   políčko 8   políčko 9
-        
-        Politčka 3 a 8 mají pouze {3, 7}
-        -> 3 a 7 nemohou být v políčku 9 (i když tam mohou být jako kandidáti)
-        -> Vyloučíme je z políčka 9
-        
-        BODŮ: 4-5 bodů za eliminaci (4 pro řádky/sloupce, 5 pro boxy)
-        """
+    def candidate_transfer_method():
         change = False
-        pts = 0
-        
-        # Řádky
+        points = 0
         for r in range(9):
-            # Najít všechna políčka se dvěma kandidáty
-            pairs = [(s, kandidati[r][s]) for s in range(9) if len(kandidati[r][s]) == 2]
-            # Porovnat všechny páry
+            for c in range(9):
+                if board[r][c] == 0 and len(candidates[r][c]) == 1:
+                    value = next(iter(candidates[r][c]))
+                    board[r][c] = value
+                    update_after_move(r, c, value)
+                    change = True
+                    points += 3
+        return change, points
+
+    def visible_pair_method():
+        change = False
+        points = 0
+        for unit in all_groups():
+            pairs = [(r, c) for r, c in unit if len(candidates[r][c]) == 2]
             for i in range(len(pairs)):
                 for j in range(i + 1, len(pairs)):
-                    s1, k1 = pairs[i]
-                    s2, k2 = pairs[j]
-                    # Pokud mají stejné kandidáty
+                    r1, c1 = pairs[i]
+                    r2, c2 = pairs[j]
+                    k1 = candidates[r1][c1]
+                    k2 = candidates[r2][c2]
                     if k1 == k2:
-                        # Vyndat je z ostatních políček v řádku
-                        for s in range(9):
-                            if s != s1 and s != s2 and not kandidati[r][s].isdisjoint(k1):
-                                kandidati[r][s] -= k1
-                                change = True
-                                pts += 4
-        
-        # Sloupce
-        for s in range(9):
-            pairs = [(r, kandidati[r][s]) for r in range(9) if len(kandidati[r][s]) == 2]
-            for i in range(len(pairs)):
-                for j in range(i + 1, len(pairs)):
-                    r1, k1 = pairs[i]
-                    r2, k2 = pairs[j]
-                    if k1 == k2:
-                        for r in range(9):
-                            if r != r1 and r != r2 and not kandidati[r][s].isdisjoint(k1):
-                                kandidati[r][s] -= k1
-                                change = True
-                                pts += 4
-        
-        # Boxy
-        for bn in range(9):
-            sr, ss = (bn // 3) * 3, (bn % 3) * 3
-            cells = []
-            for r in range(sr, sr + 3):
-                for s in range(ss, ss + 3):
-                    if len(kandidati[r][s]) == 2:
-                        cells.append((r, s, kandidati[r][s]))
-            for i in range(len(cells)):
-                for j in range(i + 1, len(cells)):
-                    r1, s1, k1 = cells[i]
-                    r2, s2, k2 = cells[j]
-                    if k1 == k2:
-                        for r in range(sr, sr + 3):
-                            for s in range(ss, ss + 3):
-                                if (r, s) != (r1, s1) and (r, s) != (r2, s2):
-                                    if not kandidati[r][s].isdisjoint(k1):
-                                        kandidati[r][s] -= k1
-                                        change = True
-                                        pts += 5
-        return change, pts
+                        eliminated = False
+                        for r, c in unit:
+                            if (r, c) not in ((r1, c1), (r2, c2)):
+                                if not candidates[r][c].isdisjoint(k1):
+                                    candidates[r][c] -= k1
+                                    eliminated = True
+                        if eliminated:
+                            change = True
+                            points += 4
+        return change, points
 
-    def m_smerujici_dvojice():
-        """
-        SMĚŘUJÍCÍ DVOJICE (Pointing Pairs)
-        
-        VYSVĚTLENÍ:
-        Pokud se kandidát v boxu vyskytuje jen v jednom řádku či sloupci,
-        pak se nemůže vyskytovat v ostatních boxech v tom řádku/sloupci.
-        
-        PŘÍKLAD:
-        Box (levý horní):
-        [1, _, _]
-        [_, _, 5]
-        [_, _, 2]
-        
-        Jako kandidáti jsou: {1}, {3,4}, {6,7}, ...
-        Řekněme že 8 se v boxu vyskytuje jen v prvním řádku:
-        [1, _, 8]  (jen zde)
-        [_, _, _]
-        [_, _, _]
-        
-        -> 8 se nemůže vyskytovat v ostatních boxech v prvním řádku
-        
-        BODŮ: 6 bodů za eliminaci
-        """
+    def direct_pair_method():
         change = False
-        pts = 0
-        for bn in range(9):
-            sr, ss = (bn // 3) * 3, (bn % 3) * 3
-            for val in range(1, 10):
-                # Najít všechny pozice kde se vyskytuje val v tomto boxu
-                coords = [
-                    (r, s) for r in range(sr, sr + 3) for s in range(ss, ss + 3)
-                    if val in kandidati[r][s]
+        points = 0
+        for block_index in range(9):
+            start_row, start_col = (block_index // 3) * 3, (block_index % 3) * 3
+            for value in range(1, 10):
+                positions = [
+                    (r, c) for r in range(start_row, start_row + 3) for c in range(start_col, start_col + 3)
+                    if value in candidates[r][c]
                 ]
-                if 2 <= len(coords) <= 3:
-                    # Všechny jsou v jednom řádku?
-                    if all(c[0] == coords[0][0] for c in coords):
-                        row = coords[0][0]
-                        # Vyloučit z ostatních boxů v tomto řádku
-                        for s in range(9):
-                            if not (ss <= s < ss + 3) and val in kandidati[row][s]:
-                                kandidati[row][s].discard(val)
-                                change = True
-                                pts += 6
-                    # Všechny jsou v jednom sloupci?
-                    elif all(c[1] == coords[0][1] for c in coords):
-                        col = coords[0][1]
-                        # Vyloučit z ostatních boxů v tomto sloupci
+                if 2 <= len(positions) <= 3:
+                    if all(position[0] == positions[0][0] for position in positions):
+                        row = positions[0][0]
+                        eliminated = False
+                        for c in range(9):
+                            if not (start_col <= c < start_col + 3) and value in candidates[row][c]:
+                                candidates[row][c].discard(value)
+                                eliminated = True
+                        if eliminated:
+                            change = True
+                            points += 6
+                    elif all(position[1] == positions[0][1] for position in positions):
+                        col = positions[0][1]
+                        eliminated = False
                         for r in range(9):
-                            if not (sr <= r < sr + 3) and val in kandidati[r][col]:
-                                kandidati[r][col].discard(val)
+                            if not (start_row <= r < start_row + 3) and value in candidates[r][col]:
+                                candidates[r][col].discard(value)
+                                eliminated = True
+                        if eliminated:
+                            change = True
+                            points += 6
+        return change, points
+
+    def hidden_pair_method():
+        change = False
+        points = 0
+        for unit in all_groups():
+            for value_1 in range(1, 10):
+                for value_2 in range(value_1 + 1, 10):
+                    positions = [(r, c) for r, c in unit if value_1 in candidates[r][c] and value_2 in candidates[r][c]]
+                    if len(positions) == 2:
+                        value_1_count = sum(1 for r, c in unit if value_1 in candidates[r][c])
+                        value_2_count = sum(1 for r, c in unit if value_2 in candidates[r][c])
+                        if value_1_count == 2 and value_2_count == 2:
+                            reduced = False
+                            for r, c in positions:
+                                if len(candidates[r][c]) > 2:
+                                    candidates[r][c] = {value_1, value_2}
+                                    reduced = True
+                            if reduced:
                                 change = True
-                                pts += 6
-        return change, pts
+                                points += 10
+        return change, points
 
-    def m_skryte_dvojice():
-        """
-        SKRYTÉ DVOJICE (Hidden Pairs)
-        
-        VYSVĚTLENÍ:
-        Pokud se dva kandidáti v řádku vyskytují POUZE ve dvou políčích
-        (skrytě, protože tam mohou být i jiní kandidáti), pak mohou být
-        v těchto dvou políčkách jen tyto dva kandidáti.
-        
-        PŘÍKLAD:
-        Řádek: [1, {2,3,5}, {2,5}, {4}, {6}, {3,7}, ...]
-                        ↑        ↑
-        2 se vyskytuje jen v políčcích 2 a 3
-        5 se vyskytuje jen v políčcích 2 a 3
-        -> V těchto dvou políčkách mohou být jen 2 a 5
-        -> Vyloučit 3 a 7 z politčka 2
-        
-        BODŮ: 10 bodů za eliminaci
-        """
+    def visible_triple_method():
         change = False
-        pts = 0
-        for r in range(9):
-            # Zkusit všechny páry kandidátů
-            for v1 in range(1, 10):
-                for v2 in range(v1 + 1, 10):
-                    # Najít místa kde se vyskytují OBA kandidáti
-                    pos = [s for s in range(9) if v1 in kandidati[r][s] and v2 in kandidati[r][s]]
-                    if len(pos) == 2:
-                        # Ověřit že oba kandidáti se vyskytují POUZE v těchto místech
-                        v1_count = sum(1 for s in range(9) if v1 in kandidati[r][s])
-                        v2_count = sum(1 for s in range(9) if v2 in kandidati[r][s])
-                        if v1_count == 2 and v2_count == 2:
-                            # Zachovat jen tyto dva kandidáty v těchto políčkách
-                            for s in pos:
-                                if len(kandidati[r][s]) > 2:
-                                    kandidati[r][s] = {v1, v2}
-                                    change = True
-                                    pts += 10
-        return change, pts
-
-    def m_viditelne_trojice():
-        """
-        VIDITELNÉ TROJICE (Naked Triples)
-        
-        VYSVĚTLENÍ:
-        Pokud tři políčka mají STEJNÉ TŘI kandidáty, pak tyto
-        tři kandidáti nemohou být v žádném jiném políčku v té skupině.
-        
-        (Rozšíření viditelných dvojic)
-        
-        PŘÍKLAD:
-        Řádek: [{2,3,5}, {2,3,5}, {2,3,5}, {1,4,6}, ...]
-                   ↑         ↑         ↑
-        Tři politčka mají {2,3,5}
-        -> 2, 3 a 5 nemohou být nikde jinde v řádku
-        -> Vyloučit z politčka {1,4,6}
-        
-        BODŮ: 15 bodů za eliminaci
-        """
-        change = False
-        pts = 0
-        for r in range(9):
-            # Najít politčka se 2-3 kandidáty
-            cells = [(s, kandidati[r][s]) for s in range(9) if 1 < len(kandidati[r][s]) <= 3]
-            if len(cells) < 3:  # Nutně potřebujeme alespoň 3 políčka
+        points = 0
+        for unit in all_groups():
+            cells = [(r, c) for r, c in unit if 1 < len(candidates[r][c]) <= 3]
+            if len(cells) < 3:
                 continue
-            # Porovnat všechny trojice
             for i in range(len(cells)):
                 for j in range(i + 1, len(cells)):
                     for k in range(j + 1, len(cells)):
-                        s1, k1 = cells[i]
-                        s2, k2 = cells[j]
-                        s3, k3 = cells[k]
-                        union = k1 | k2 | k3  # Sjednocení všech tří
-                        # Pokud je sjednocení právě 3 kandidáty
+                        r1, c1 = cells[i]
+                        r2, c2 = cells[j]
+                        r3, c3 = cells[k]
+                        union = candidates[r1][c1] | candidates[r2][c2] | candidates[r3][c3]
                         if len(union) == 3:
-                            # Vyloučit tyto tři z ostatních políček
-                            for s in range(9):
-                                if s not in (s1, s2, s3) and not kandidati[r][s].isdisjoint(union):
-                                    kandidati[r][s] -= union
-                                    change = True
-                                    pts += 15
-        return change, pts
+                            eliminated = False
+                            for r, c in unit:
+                                if (r, c) not in ((r1, c1), (r2, c2), (r3, c3)):
+                                    if not candidates[r][c].isdisjoint(union):
+                                        candidates[r][c] -= union
+                                        eliminated = True
+                            if eliminated:
+                                change = True
+                                points += 15
+        return change, points
 
-    def m_x_kridlo():
-        """
-        X-KŘÍDLO (X-Wing)
-        
-        VYSVĚTLENÍ:
-        Pokročilá metoda. Pokud se kandidát ve dvou řádcích
-        vyskytuje jen ve stejných dvou sloupcích, pak se nemůže
-        vyskytovat v dalších řádcích v těchto sloupcích.
-        
-        PŘÍKLAD:
-        Řádek 1: ... {1,3} ... {1,5} ...
-        Řádek 5: ... {1,2} ... {1,7} ...
-        Sloupce: 3, 7
-        
-        1 se v řádku 1 vyskytuje jen ve sloupcích 3 a 7
-        1 se v řádku 5 vyskytuje jen ve sloupcích 3 a 7
-        
-        Tvar X-křídla:
-        Řádek 1, sloupec 3: 1 ❌
-        Řádek 1, sloupec 7: 1 ❌
-        Řádek 5, sloupec 3: 1 ❌
-        Řádek 5, sloupec 7: 1 ❌
-        
-        -> 1 se nemůže vyskytovat v ostatních řádcích ve sloupcích 3 a 7
-        
-        BODŮ: 25 bodů za eliminaci
-        """
+    def x_wing_method():
         change = False
-        pts = 0
-        for val in range(1, 10):
+        points = 0
+        for value in range(1, 10):
             rows = []
-            # Najít řádky kde se val vyskytuje jen ve dvou sloupcích
             for r in range(9):
-                cols = [s for s in range(9) if val in kandidati[r][s]]
-                if len(cols) == 2:
-                    rows.append((r, cols))
-            # Najít dva řádky se stejnými sloupci
+                columns = [c for c in range(9) if value in candidates[r][c]]
+                if len(columns) == 2:
+                    rows.append((r, columns))
             for i in range(len(rows)):
                 for j in range(i + 1, len(rows)):
                     r1, c1 = rows[i]
                     r2, c2 = rows[j]
                     if c1 == c2:
-                        # Vyloučit val z ostatních řádků v těchto sloupcích
+                        eliminated = False
                         for r_idx in range(9):
                             if r_idx != r1 and r_idx != r2:
-                                for s_idx in c1:
-                                    if val in kandidati[r_idx][s_idx]:
-                                        kandidati[r_idx][s_idx].discard(val)
-                                        change = True
-                                        pts += 25
+                                for c_idx in c1:
+                                    if value in candidates[r_idx][c_idx]:
+                                        candidates[r_idx][c_idx].discard(value)
+                                        eliminated = True
+                        if eliminated:
+                            change = True
+                            points += 25
+
+            column_pairs = []
+            for c in range(9):
+                rows_for_value = [r for r in range(9) if value in candidates[r][c]]
+                if len(rows_for_value) == 2:
+                    column_pairs.append((c, rows_for_value))
+            for i in range(len(column_pairs)):
+                for j in range(i + 1, len(column_pairs)):
+                    c1, r1 = column_pairs[i]
+                    c2, r2 = column_pairs[j]
+                    if r1 == r2:
+                        eliminated = False
+                        for c_idx in range(9):
+                            if c_idx != c1 and c_idx != c2:
+                                for r_idx in r1:
+                                    if value in candidates[r_idx][c_idx]:
+                                        candidates[r_idx][c_idx].discard(value)
+                                        eliminated = True
+                        if eliminated:
+                            change = True
+                            points += 25
         return change, pts
 
-    # ========================================================================
-    # HLAVNÍ SMYČKA ŘEŠENÍ
-    # ========================================================================
-    limit_kroku = 100
-
-    for _ in range(limit_kroku):
-        # ===== FÁZE 1: JEDNODUCHÉ METODY (BEZ KANDIDÁTŮ) =====
-        # Zkušujeme jednoduché metody dokud pracují
-        
-        ok, b = m_poslední_volné()
+    step_limit = 200
+    for _ in range(step_limit):
+        ok, gained = last_empty_method()
         if ok:
-            skore += b
+            score += gained
             continue
 
-        ok, b = m_jediná_možnost()
+        ok, gained = single_choice_method()
         if ok:
-            skore += b
+            score += gained
             continue
 
-        ok, b = m_jediné_umístění()
+        ok, gained = single_position_method()
         if ok:
-            skore += b
+            score += gained
             continue
 
-        # ===== FÁZE 2: POKROČILÉ METODY (S KANDIDÁTY) =====
-        # Pokud jednoduché metody nefungovaly, aktivujeme kandidáty
-        if not kandidati_aktivni:
-            refresh_kandidaty()
-            kandidati_aktivni = True
+        if not candidates_active:
+            refresh_candidates()
+            candidates_active = True
 
-        # Spustit VŠECHNY pokročilé metody a sbírat jejich body
-        zmena_celkove = False
-        
-        ok, b = m_smerujici_dvojice()
+        overall_change = False
+        ok, gained = direct_pair_method()
         if ok:
-            skore += b
-            zmena_celkove = True
-
-        ok, b = m_viditelne_dvojice()
+            score += gained
+            overall_change = True
+        ok, gained = visible_pair_method()
         if ok:
-            skore += b
-            zmena_celkove = True
-
-        ok, b = m_skryte_dvojice()
+            score += gained
+            overall_change = True
+        ok, gained = hidden_pair_method()
         if ok:
-            skore += b
-            zmena_celkove = True
-
-        ok, b = m_viditelne_trojice()
+            score += gained
+            overall_change = True
+        ok, gained = visible_triple_method()
         if ok:
-            skore += b
-            zmena_celkove = True
-
-        ok, b = m_x_kridlo()
+            score += gained
+            overall_change = True
+        ok, gained = x_wing_method()
         if ok:
-            skore += b
-            zmena_celkove = True
+            score += gained
+            overall_change = True
 
-        # Pokud NĚKTERÁ metoda něco udělala, pokračuj znovu (zkus dál jednoduché)
-        if zmena_celkove:
+        ok, gained = candidate_transfer_method()
+        if ok:
+            score += gained
+            overall_change = True
+
+        if overall_change:
             continue
-
-        # Žádná metoda nezabrala -> konec logického řešení
         break
 
-    # --- VYHODNOCENÍ ---
-    pocet_prazdnych = sum(row.count(0) for row in pole)
+    empty_count = sum(row.count(0) for row in board)
+    if empty_count == 0:
+        return (score, True)
 
-    if pocet_prazdnych == 0:
-        # Vyřešeno logicky - vrátit skóre a značku řešitelnosti
-        return (skore, True)
+    penalized_score = score + 50 + (empty_count * 5)
+    return (penalized_score, False)
+
+
+def generate_game(cells_to_remove=40):
+    """Generate a valid Sudoku puzzle with difficulty requirements."""
+    if cells_to_remove < 20:
+        minimum_score = max(1, cells_to_remove // 3)
+    elif cells_to_remove < 35:
+        minimum_score = cells_to_remove // 2
+    elif cells_to_remove < 50:
+        minimum_score = cells_to_remove // 2 + 5
     else:
-        # Nevyřešeno logicky -> Sudoku vyžaduje hádání (Trial & Error)
-        # Vrátit penalizované skóre a značku že není logicky řešitelné
-        penalized_score = skore + 50 + (pocet_prazdnych * 5)
-        return (penalized_score, False)
+        minimum_score = 100
 
-
-# ============================================================================
-# ČÁST 4: GENERÁTOR HER
-# ============================================================================
-
-def vygeneruj_hru(pocet_dier=40):
-    """
-    Vygeneruje Sudoku puzzle, které je:
-    1. Správně řešitelné (právě jedno řešení)
-    2. Logicky řešitelné (bez náhodného hádání)
-    3. Dostatečně obtížné (alespoň min_skore bodů)
-    
-    Pokud Sudoku není logicky řešitelné, vygeneruje nové.
-    
-    PROCES:
-    =======
-    1. Vytvořit nové náhodné kompletní Sudoku
-    2. Odebrat z něj zadaný počet čísel
-    3. Změřit jeho obtížnost
-    4. Ověřit že je logicky řešitelné a dostatečně těžké
-    5. Pokud ne, zkusit znovu (max 50x)
-    
-    Args:
-        pocet_dier (int): Počet políček k odebrání
-                         30=lehké, 45=střední, 54=těžké
-    
-    Returns:
-        tuple: (zadani, reseni, skore)
-               - zadani: Sudoku puzzle (s nulami jako prázdná politčka)
-               - reseni: Kompletně vyplněné správné řešení
-               - skore: Změřená obtížnost (počet bodů)
-    """
-    
-    # --- NASTAVENÍ POŽADAVKŮ PODLE OBTÍŽNOSTI ---
-    # Adaptivní systém: čím více děr, tím vyšší skóre požadujeme
-    if pocet_dier < 20:
-        min_skore = max(1, pocet_dier // 3)  # Max 6 bodů
-    elif pocet_dier < 35:
-        min_skore = pocet_dier // 2  # Cca 15-17 bodů
-    elif pocet_dier < 50:
-        min_skore = pocet_dier // 2 + 5  # Cca 22-30 bodů
-    else:
-        min_skore = 100  # Těžké: alespoň 100 bodů
-    
-    print(f"Hledám sudoku s {pocet_dier} děrami a min. skóre {min_skore}...")
-    
+    print(f"Searching for Sudoku with {cells_to_remove} holes and min. score {minimum_score}...")
     attempt = 0
-    while attempt < 50:  # Max 50 pokusů (abychom neujeli do nekonečna)
-        attempt += 1
-        
-        # --- KROK 1: Vytvořit plné Sudoku ---
-        pole = [[0] * 9 for _ in range(9)]
-        doplneni_pole(pole)
-        plne_reseni = [r[:] for r in pole]
-        
-        # --- KROK 2: Odebrat čísla a vytvořit puzzle ---
-        zadani = odeber_cisla([r[:] for r in pole], pocet_dier)
-        
-        # --- KROK 3: Měřit obtížnost a ověřit řešitelnost ---
-        skore, je_resitelne = urceni_slozitosti(zadani)
-        
-        # --- KROK 4: Kontrola kritérií ---
-        if je_resitelne and skore >= min_skore:
-            # Úspěch!
-            print(f"Našel jsem! Pokus č. {attempt}, Skóre: {skore}")
-            return zadani, plne_reseni, skore
-        elif not je_resitelne:
-            # Sudoku není logicky řešitelné - zkusit znovu
-            print(f"Pokus {attempt}: Sudoku není logicky řešitelné. Zkouším znovu...")
+    last_puzzle = None
+    last_solution = None
+    last_score = 0
 
-    # Pokud se nepodařilo najít vhodné Sudoku v limitu
-    print("Varování: Nepodařilo se najít dostatečně těžké sudoku v limitu. Vracím poslední nalezené.")
-    return zadani, plne_reseni, skore
+    while attempt < 50:
+        attempt += 1
+        board = [[0] * 9 for _ in range(9)]
+        fill_board(board)
+        full_solution = [row[:] for row in board]
+        puzzle = remove_numbers([row[:] for row in board], cells_to_remove)
+        score, is_solvable = determine_complexity(puzzle)
+
+        if is_solvable and score >= minimum_score:
+            print(f"Found one! Attempt {attempt}, score: {score}")
+            return puzzle, full_solution, score
+
+        if not is_solvable:
+            print(f"Attempt {attempt}: Sudoku is not logically solvable. Trying again...")
+
+        last_puzzle = puzzle
+        last_solution = full_solution
+        last_score = score
+
+    print("Warning: Could not find a sufficiently difficult Sudoku within the limit. Returning the last one found.")
+    return last_puzzle, last_solution, last_score
+
+
+# Compatibility aliases for the previous Czech API.
+je_valid = is_valid
+spocitej_reseni = count_solutions
+doplneni_pole = fill_board
+odeber_cisla = remove_numbers
+je_vyreseno = is_solved
+urceni_slozitosti = determine_complexity
+vygeneruj_hru = generate_game
