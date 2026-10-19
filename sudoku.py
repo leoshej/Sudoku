@@ -4,7 +4,6 @@ import random
 
 
 def is_valid(board, row, col, value):
-    """Return True if the value can be placed without violating Sudoku rules."""
     if value in board[row]:
         return False
 
@@ -22,7 +21,6 @@ def is_valid(board, row, col, value):
 
 
 def count_solutions(board):
-    """Count the number of valid completions for the given board."""
     empty_cell = None
     for r in range(9):
         for c in range(9):
@@ -49,7 +47,6 @@ def count_solutions(board):
 
 
 def fill_board(board):
-    """Fill an empty grid using backtracking."""
     empty_cell = None
     for r in range(9):
         for c in range(9):
@@ -77,7 +74,6 @@ def fill_board(board):
 
 
 def remove_numbers(board, cells_to_remove):
-    """Remove cells while keeping a unique solution."""
     coords = [(r, c) for r in range(9) for c in range(9)]
     random.shuffle(coords)
 
@@ -99,7 +95,6 @@ def remove_numbers(board, cells_to_remove):
 
 
 def is_solved(grid):
-    """Check whether a Sudoku board is complete and valid."""
     if not grid or len(grid) != 9 or not all(isinstance(row, list) and len(row) == 9 for row in grid):
         return False
 
@@ -121,7 +116,6 @@ def is_solved(grid):
 
 
 def determine_complexity(input_grid):
-    """Estimate puzzle difficulty using logical solving patterns."""
     board = [row[:] for row in input_grid]
     score = 0
     candidates = [[set() for _ in range(9)] for _ in range(9)]
@@ -379,7 +373,7 @@ def determine_complexity(input_grid):
                         if eliminated:
                             change = True
                             points += 25
-        return change, pts
+        return change, points
 
     step_limit = 200
     for _ in range(step_limit):
@@ -435,14 +429,13 @@ def determine_complexity(input_grid):
 
     empty_count = sum(row.count(0) for row in board)
     if empty_count == 0:
-        return (score, True)
+        return score, True
 
     penalized_score = score + 50 + (empty_count * 5)
-    return (penalized_score, False)
+    return penalized_score, False
 
 
 def generate_game(cells_to_remove=40):
-    """Generate a valid Sudoku puzzle with difficulty requirements."""
     if cells_to_remove < 20:
         minimum_score = max(1, cells_to_remove // 3)
     elif cells_to_remove < 35:
