@@ -435,7 +435,12 @@ def determine_complexity(input_grid):
     return penalized_score, False
 
 
-def generate_game(cells_to_remove=40):
+def generate_game(cells_to_remove=40, pocet_dier=None):
+    if pocet_dier is not None:
+        cells_to_remove = pocet_dier
+    if cells_to_remove is None:
+        cells_to_remove = 40
+
     if cells_to_remove < 20:
         minimum_score = max(1, cells_to_remove // 3)
     elif cells_to_remove < 35:

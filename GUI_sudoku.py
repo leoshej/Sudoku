@@ -197,7 +197,7 @@ def main():
                         pygame.display.flip()
 
                         holes_count = holes_map[current_diff_idx]
-                        puzzle_grid, solution_grid_value, score = sudoku.vygeneruj_hru(pocet_dier=holes_count)
+                        puzzle_grid, solution_grid_value, score = sudoku.vygeneruj_hru(cells_to_remove=holes_count)
 
                         current_grid = [row[:] for row in puzzle_grid]
                         fixed_grid = [row[:] for row in puzzle_grid]
